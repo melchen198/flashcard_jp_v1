@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Japanese Flashcards</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f0;
+      color: #2c2c2c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .screen { display: none; width: 100%; max-width: 700px; padding: 2rem; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .subtitle { color: #666; margin-bottom: 1.5rem; font-size: 0.95rem; text-align: center; }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-family: monospace;
+      resize: vertical;
+      background: white;
+      line-height: 1.6;
+    }
+    textarea:focus { outline: none; border-color: #5c6bc0; }
+
+    .direction-control {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0;
+      background: white;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      width: 100%;
+      justify-content: center;
+    }
+    .direction-control label { font-size: 0.9rem; color: #444; }
+    .dir-btn {
+      padding: 0.4rem 0.9rem;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      background: white;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .dir-btn.active { background: #5c6bc0; color: white; border-color: #5c6bc0; }
+
+    .btn-primary {
+      margin-top: 1rem;
+      padding: 0.75rem 2rem;
+      background: #5c6bc0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #4a58a8; }
+
+    .error-msg { color: #c62828; font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2rem; }
+
+    /* Study screen */
+    .study-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .progress { font-size: 0.9rem; color: #666; }
+    .pass-badge {
+      background: #e8eaf6;
+      color: #5c6bc0;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .pass-badge.review { background: #fff3e0; color: #e65100; }
+
+    /* Flashcard */
+    .card-scene {
+      width: 100%;
+      height: 280px;
+      perspective: 1000px;
+      cursor: pointer;
+      margin-bottom: 1.2rem;
+    }
+    .card {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.26s ease;
+    }
+    .card.flipped { transform: rotateY(180deg); }
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .card-back {
+      transform: rotateY(180deg);
+      justify-content: center;
+    }
+
+    .word-main    { font-size: 2.8rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.4rem; }
+    .word-reading { font-size: 1.1rem; color: #888; margin-bottom: 0.4rem; }
+    .word-english { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.8rem; }
+    .word-en-prompt { font-size: 1.7rem; font-weight: 600; }
+    .card-hint { font-size: 0.8rem; color: #bbb; margin-top: 0.6rem; }
+    .usage-note {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #555;
+      background: #f9f9f6;
+      border-left: 3px solid #5c6bc0;
+      padding: 0.6rem 0.8rem;
+      border-radius: 4px;
+      text-align: left;
+      width: 100%;
+      line-height: 1.6;
+    }
+
+
+    /* Score buttons */
+    .score-buttons {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+      width: 100%;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .score-buttons.visible { opacity: 1; pointer-events: all; }
+    .score-btn {
+      padding: 0.6rem 0.2rem;
+      border: 1px solid;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-align: center;
+      font-weight: 500;
+      line-height: 1.3;
+      transition: filter 0.15s;
+    }
+    .score-btn:hover { filter: brightness(0.9); }
+    .score-btn.easily  { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+    .score-btn.effort  { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
+    .score-btn.partial { background: #fff8e1; border-color: #ffe082; color: #f57f17; }
+    .score-btn.forgot  { background: #fce4ec; border-color: #f48fb1; color: #c62828; }
+    .score-btn.skip    { background: #f5f5f5; border-color: #bdbdbd; color: #616161; }
+
+    /* Summary */
+    .summary-header { margin-bottom: 1.5rem; text-align: center; }
+    .score-counts {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .score-pill {
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .pill-easily  { background: #e8f5e9; color: #2e7d32; }
+    .pill-effort  { background: #e3f2fd; color: #1565c0; }
+    .pill-partial { background: #fff8e1; color: #f57f17; }
+    .pill-forgot  { background: #fce4ec; color: #c62828; }
+    .pill-skip    { background: #f5f5f5; color: #616161; }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 1.5rem;
+    }
+    .summary-table th {
+      background: #e8eaf6;
+      padding: 0.6rem 0.8rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: #3c3c6e;
+    }
+    .summary-table td {
+      padding: 0.6rem 0.8rem;
+      border-top: 1px solid #f0f0f0;
+      vertical-align: middle;
+    }
+    .summary-table tr:hover td { background: #fafafa; }
+    .score-tag {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .btn-restart {
+      padding: 0.75rem 2rem;
+      background: #5c6bc0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-bottom: 2rem;
+    }
+    .btn-restart:hover { background: #4a58a8; }
+  </style>
+</head>
+<body>
+
+<!-- INPUT SCREEN -->
+<div id="screen-input" class="screen active">
+  <h1>Japanese Flashcards</h1>
+  <p class="subtitle">Paste your vocabulary list and start studying.</p>
+
+  <textarea id="vocab-input" placeholder="- **Word/Phrase**: 出身
+  - **Reading**: しゅっしん
+  - **English Meaning**: hometown; origin
+  - **Usage Note**: 「台湾出身です」のように自己紹介でよく使います。
+
+- **Word/Phrase**: 住んでいます
+  - **Reading**: すんでいます
+  - **English Meaning**: live (reside)
+  - **Usage Note**: 今の居住地を言うときに便利です。
+
+- **Word/Phrase**: 〜に行く
+  - **Reading**: 〜にいく
+  - **English Meaning**: go to ~"></textarea>
+
+  <div class="direction-control">
+    <label>Study direction:</label>
+    <button class="dir-btn active" data-dir="jp-en">Japanese → English</button>
+    <button class="dir-btn" data-dir="en-jp">English → Japanese</button>
+    <button class="dir-btn" data-dir="mixed">Mixed</button>
+  </div>
+
+  <p id="input-error" class="error-msg"></p>
+  <button class="btn-primary" onclick="startSession()">Start Session</button>
+</div>
+
+<!-- STUDY SCREEN -->
+<div id="screen-study" class="screen">
+  <div class="study-header">
+    <span class="progress" id="progress-text">Card 1 of 20</span>
+    <span class="pass-badge" id="pass-badge">Pass 1</span>
+  </div>
+
+  <div class="card-scene" onclick="flipCard()">
+    <div class="card" id="flashcard">
+      <div class="card-face card-front" id="card-front"></div>
+      <div class="card-face card-back"  id="card-back"></div>
+    </div>
+  </div>
+
+
+  <div class="score-buttons" id="score-buttons">
+    <button class="score-btn easily"  onclick="score('easily')">Easily<br>Recalled</button>
+    <button class="score-btn effort"  onclick="score('effort')">Recalled<br>with Effort</button>
+    <button class="score-btn partial" onclick="score('partial')">Partially<br>Recalled</button>
+    <button class="score-btn forgot"  onclick="score('forgot')">Forgot</button>
+    <button class="score-btn skip"    onclick="score('skip')">Skip</button>
+  </div>
+</div>
+
+<!-- SUMMARY SCREEN -->
+<div id="screen-summary" class="screen">
+  <div class="summary-header">
+    <h1>Session Complete</h1>
+    <p class="subtitle" id="summary-subtitle"></p>
+  </div>
+  <div class="score-counts" id="score-counts"></div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Word / Phrase</th>
+        <th>Reading</th>
+        <th>English</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody id="summary-body"></tbody>
+  </table>
+  <button class="btn-restart" onclick="restart()">New Session</button>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────
+  let cards        = [];
+  let deck         = [];
+  let secondPass   = [];
+  let currentIndex = 0;
+  let isFlipped    = false;
+  let isReviewPass = false;
+  let direction    = 'jp-en';
+  let results      = {};   // cardIndex → last score
+
+  // ── Direction toggle ───────────────────────────────────
+  document.querySelectorAll('.dir-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      direction = btn.dataset.dir;
+    });
+  });
+
+  // ── Parser ─────────────────────────────────────────────
+  function parseVocab(text) {
+    const parsed = [];
+    let current  = null;
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      const wp = line.match(/^\-\s*\*\*Word\/Phrase\*\*:\s*(.+)/);
+      if (wp) {
+        if (current && current.word && current.english) parsed.push(current);
+        current = { word: wp[1].trim(), reading: '', english: '', note: '' };
+        continue;
+      }
+      if (!current) continue;
+      const rd = line.match(/^\-\s*\*\*Reading\*\*:\s*(.+)/);
+      if (rd) { current.reading = rd[1].trim(); continue; }
+      const en = line.match(/^\-\s*\*\*English Meaning\*\*:\s*(.+)/);
+      if (en) { current.english = en[1].trim(); continue; }
+      const nt = line.match(/^\-\s*\*\*Usage Note\*\*:\s*(.+)/);
+      if (nt) { current.note = nt[1].trim(); continue; }
+    }
+    if (current && current.word && current.english) parsed.push(current);
+    return parsed;
+  }
+
+  // ── Shuffle ────────────────────────────────────────────
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // ── Start ──────────────────────────────────────────────
+  function startSession() {
+    const text = document.getElementById('vocab-input').value;
+    cards = parseVocab(text);
+    if (cards.length === 0) {
+      document.getElementById('input-error').textContent =
+        'No valid entries found. Check that your list uses the correct format.';
+      return;
+    }
+    document.getElementById('input-error').textContent = '';
+    results      = {};
+    secondPass   = [];
+    isReviewPass = false;
+    deck         = shuffle(cards.map((_, i) => i));
+    currentIndex = 0;
+    showScreen('screen-study');
+    renderCard();
+  }
+
+  // ── Render card ────────────────────────────────────────
+  function renderCard() {
+    const cardEl = document.getElementById('flashcard');
+    isFlipped = false;
+    cardEl.classList.remove('flipped');
+    document.getElementById('score-buttons').classList.remove('visible');
+
+    const currentDeck = isReviewPass ? secondPass : deck;
+    const cardIdx     = currentDeck[currentIndex];
+    const card        = cards[cardIdx];
+
+    const dir = direction === 'mixed'
+      ? (Math.random() < 0.5 ? 'jp-en' : 'en-jp')
+      : direction;
+
+    // Front
+    const front = document.getElementById('card-front');
+    if (dir === 'jp-en') {
+      front.innerHTML = `
+        <div class="word-main">${esc(card.word)}</div>
+        ${card.reading ? `<div class="word-reading">${esc(card.reading)}</div>` : ''}`;
+    } else {
+      front.innerHTML = `
+        <div class="word-en-prompt">${esc(card.english)}</div>`;
+    }
+
+    // Back
+    const back = document.getElementById('card-back');
+    if (dir === 'jp-en') {
+      back.innerHTML = `
+        <div class="word-english">${esc(card.english)}</div>
+        ${card.note ? `<div class="usage-note">${esc(card.note)}</div>` : ''}`;
+    } else {
+      back.innerHTML = `
+        <div class="word-main">${esc(card.word)}</div>
+        ${card.reading ? `<div class="word-reading">${esc(card.reading)}</div>` : ''}
+        ${card.note ? `<div class="usage-note">${esc(card.note)}</div>` : ''}`;
+    }
+
+    // Progress
+    document.getElementById('progress-text').textContent =
+      `Card ${currentIndex + 1} of ${currentDeck.length}`;
+    const badge = document.getElementById('pass-badge');
+    badge.textContent = isReviewPass ? 'Review Pass' : 'Pass 1';
+    badge.className   = 'pass-badge' + (isReviewPass ? ' review' : '');
+  }
+
+  // ── Flip ───────────────────────────────────────────────
+  function flipCard() {
+    isFlipped = !isFlipped;
+    document.getElementById('flashcard').classList.toggle('flipped', isFlipped);
+    if (isFlipped) {
+      document.getElementById('score-buttons').classList.add('visible');
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && document.getElementById('screen-study').classList.contains('active')) {
+      e.preventDefault();
+      flipCard();
+    }
+  });
+
+  // ── Score ──────────────────────────────────────────────
+  function score(rating) {
+    const currentDeck = isReviewPass ? secondPass : deck;
+    const cardIdx     = currentDeck[currentIndex];
+    results[cardIdx]  = rating;
+
+    if (!isReviewPass && (rating === 'forgot' || rating === 'partial')) {
+      secondPass.push(cardIdx);
+    }
+
+    currentIndex++;
+    if (currentIndex >= currentDeck.length) {
+      if (!isReviewPass && secondPass.length > 0) {
+        isReviewPass = true;
+        secondPass   = shuffle(secondPass);
+        currentIndex = 0;
+        renderCard();
+      } else {
+        showSummary();
+      }
+    } else {
+      renderCard();
+    }
+  }
+
+  // ── Summary ────────────────────────────────────────────
+  const SCORES = {
+    easily:  { label: 'Easily Recalled',    cls: 'easily',  pill: 'pill-easily'  },
+    effort:  { label: 'Recalled w/ Effort', cls: 'effort',  pill: 'pill-effort'  },
+    partial: { label: 'Partially Recalled', cls: 'partial', pill: 'pill-partial' },
+    forgot:  { label: 'Forgot',             cls: 'forgot',  pill: 'pill-forgot'  },
+    skip:    { label: 'Skipped',            cls: 'skip',    pill: 'pill-skip'    },
+  };
+
+  function showSummary() {
+    showScreen('screen-summary');
+
+    const counts = { easily: 0, effort: 0, partial: 0, forgot: 0, skip: 0 };
+    Object.values(results).forEach(r => { if (r in counts) counts[r]++; });
+
+    document.getElementById('summary-subtitle').textContent =
+      `${cards.length} word${cards.length !== 1 ? 's' : ''} reviewed`;
+
+    document.getElementById('score-counts').innerHTML =
+      Object.entries(counts).map(([k, n]) =>
+        `<span class="score-pill ${SCORES[k].pill}">${SCORES[k].label}: ${n}</span>`
+      ).join('');
+
+    document.getElementById('summary-body').innerHTML = cards.map((card, i) => {
+      const r = results[i] || 'skip';
+      const s = SCORES[r];
+      return `<tr>
+        <td>${esc(card.word)}</td>
+        <td style="color:#888">${esc(card.reading)}</td>
+        <td>${esc(card.english)}</td>
+        <td><span class="score-tag score-btn ${s.cls}">${s.label}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Helpers ────────────────────────────────────────────
+  function restart() { showScreen('screen-input'); }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>
